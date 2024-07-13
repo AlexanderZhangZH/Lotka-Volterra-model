@@ -8,8 +8,8 @@
 # include<stdint.h>
 # include<omp.h>
 
-# define S 200 //number of species evolving
-# define T 100000
+# define S 100 //number of species evolving
+# define T 1000000
     // storage limit: S*N = 10^8 would out put data of 1GB 
 # define delay 0
 # define N_sample 100
@@ -26,7 +26,7 @@ long double r; //= 2.5; // uniform growth rate of species.
 // parameters to judge convergence
 int N;
 int interval = (1000 > (T/100)) ? 1000:(T/100); // time interval for convergence judgement
-long double range = 0.00001; // criteria for convergence
+long double range = 0.00000000000001; // criteria for convergence
 
 long double Ni[S];
 
@@ -34,9 +34,9 @@ int main(){
     // function claims
     void pairgenerate(long double mean, long double variance, long double correlation, long double* result1, long double* result2); //function to generate correlated random number pair
     int matrix_generate(long double a[S][S], long double sig);
-    int evolve(long double** Nt, long double a[S][S], int* Changes);
+    int evolve(long double** Nt, long double a[S][S]);
     int converge(long double** Nt);
-    void write_traj(long double** Nt, int* Changes);
+    void write_traj(long double** Nt);
     void write_samp(long double Ns[N_sample][S]);
     void write_traj_judge(long double** Nt, int sample);
     int single_time_check(long double** Nt, int t, int back);
@@ -62,10 +62,7 @@ int main(){
     for (int b = 0; b < S; b++) {
         Nt[b] = (long double *)malloc(N * sizeof(long double));
     }
-    
-    int *Changes;
-    Changes = (int*)malloc(N * sizeof(int));
-    
+
     long double a[S][S]; // array to store matrix A
     if (matrix_generate(a, sig)== -1){
         return 0;
@@ -86,12 +83,12 @@ int main(){
     }
     fclose(pfile);
 
-    if(evolve(Nt,a,Changes)){
+    if(evolve(Nt,a)){
         printf("error\n");
         return 0;
     }
     if(converge(Nt)){
-        write_traj(Nt, Changes);
+        write_traj(Nt);
         printf("not converging\n");
         int pattern = 0;
         for (int o = 1; o < LEN; o++){
@@ -118,7 +115,7 @@ int main(){
             }
         }
         if(dif){
-            write_traj(Nt, Changes);
+            write_traj(Nt);
             printf("unstable found at r = %Lf\n", r);
         }else{
             printf("remain stable\n");
@@ -130,7 +127,6 @@ int main(){
         free(Nt[i]);
     }
     free(Nt);
-    free(Changes);
     
     /*
     if (error == N_sample){
@@ -210,7 +206,7 @@ int matrix_generate(long double a[S][S], long double sig){
     return 0;
 }
 
-int evolve( long double** Nt, long double a[S][S], int* Changes){
+int evolve( long double** Nt, long double a[S][S]){
     double convertBytesToDouble(const unsigned char *bytes);
   // generate the initial values of each species
    /*
@@ -226,7 +222,7 @@ int evolve( long double** Nt, long double a[S][S], int* Changes){
     for (int s = 0; s < S; s++){
         read(fd, random_bytes, NUM_BYTES);
         //if(Ni[s]){
-            Nt[s][0] = (convertBytesToDouble(random_bytes)-0.5) * 0.0001 + Ni[s];
+            Nt[s][0] = (convertBytesToDouble(random_bytes)-0.5) * 0.00000001 + Ni[s];
         //}
         if(Nt[s][0]<0){
             Nt[s][0] *= -1;
@@ -239,10 +235,11 @@ int evolve( long double** Nt, long double a[S][S], int* Changes){
     int j = 0;
     int Ext[S]; // array to record if the species have been extinct
     int toExt[S];
+    int Changes[RLEN];
     int change = 0;
     for(i=0; i<S; i++){
         Ext[i] = 1;
-        toExt[S] = 1;
+        toExt[i] = 1;
     }
     // In the case of time delay, we ignore the competition effect before the delay data exist
     for(;t < delay + 1; t++){
@@ -283,25 +280,26 @@ int evolve( long double** Nt, long double a[S][S], int* Changes){
                 Ext[i] = toExt[i];
             }
         }
-        Changes[t] = change;
+        if(t<RLEN){
+            Changes[t] = change;
+        }
         change = 0;
-        /*
+        
         if(t == RLEN - 1){
             char rname[50];
             sprintf(rname, "r_S%d|T%.0e|del%d|r%.1Le.csv", S, (double)T, delay, r);
             FILE *rfile = fopen(rname, "w");
             for (int k = 0; k<RLEN; k++){
                 for (int l = 0; l<S; l++){
-                    fprintf(rfile, "%Lf", Nt[l][k]);
-                    if (l < S-1){
-                        fprintf(rfile, ",");
-                    }
+                    fprintf(rfile, "%.15Lf", Nt[l][k]);
+                    fprintf(rfile, ",");
                 }
+                fprintf(rfile, "%d", Changes[k]);
                 fprintf(rfile, "\n");
             }
             fclose(rfile);
         }
-        */ 
+         
     }
     return 0;
 }
@@ -318,17 +316,18 @@ int converge(long double** Nt){
     return status;
 }
 
-void write_traj(long double** Nt, int* Changes){
+void write_traj(long double** Nt){
     char dname[50]; // spring for data file name
     sprintf(dname, "d_S%d|T%.0e|del%d|r%.1Le.csv", S, (double)T, delay, r);
     FILE *dfile = fopen(dname, "w");
     // write in the time evolution data
     for (int k = 0; k<N; k++){
         for (int l = 0; l<S; l++){
-            fprintf(dfile, "%Lf", Nt[l][(int)(k)]);
-            fprintf(dfile, ",");
+            fprintf(dfile, "%.15Lf", Nt[l][(int)(k)]);
+            if(l<S-1){
+                fprintf(dfile, ",");
+            }
         }
-        fprintf(dfile, "%d", Changes[k]);
         fprintf(dfile, "\n");
     }
     fclose(dfile);
