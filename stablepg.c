@@ -7,8 +7,8 @@
 # include<stdint.h>
 # include<omp.h>
 
-# define S 200 //number of species evolving
-# define T 2000000
+# define S 100 //number of species evolving
+# define T 1000000
     // storage limit: S*N = 10^8 would out put data of 1GB 
 # define delay 0
 # define N_sample 100
@@ -25,7 +25,7 @@ long double r = 0.01; //= 2.5; // uniform growth rate of species.
 int N;
 int interval = (1000 > (T/100)) ? 1000:(T/100); // time interval for convergence judgement
 //long double range = 0.00000000000001; // criteria for convergence
-long double range = 0.000001;
+long double range = 0.00000000000001;
 
 int main(){
     // function claims
@@ -34,19 +34,6 @@ int main(){
     int evolve(long double** Nt, long double a[S][S]);
     int converge(long double** Nt);
     void write_traj(long double** Nt);
-    void write_samp(long double Ns[N_sample][S]);
-    void write_traj_judge(long double** Nt, int sample);
-    int sinlge_time_check(long double** Nt, int t, int back);
-    void write_train(long double** Nt, FILE *tfile);
-
-    // input model parameters
-    //int T;
-    //int delay;
-    //printf("Input value of T\n");
-    //scanf("%d", &T);
-    //printf("Input value of delay\n");
-    //scanf("%d", &delay);
-    //delay = 0;
     N = T;
     printf("r=%LF, mu=%LF, sig=%LF, T=%d, delay=%d, S=%d\n",r, mu, sig, T, delay, S);
 
@@ -58,7 +45,6 @@ int main(){
         Nt[b] = (long double *)malloc(interval * sizeof(long double));
     }
     
-    
     long double a[S][S]; // array to store matrix A
     if (matrix_generate(a, sig)== -1){
         return 0;
@@ -68,10 +54,13 @@ int main(){
         printf("error\n");
         return 0;
     }
+    
     if(converge(Nt)){
         printf("not converging\n");
+        write_traj(Nt);
         return 0;
     }
+
     char pname[50];
     sprintf(pname, "p_S%d|mu%.0Lf|sig%.0Lf|gamma%.0Lf.csv", S, mu, sig, mygamma);
     FILE *pfile = fopen(pname, "w");
@@ -91,14 +80,6 @@ int main(){
         free(Nt[i]);
     }
     free(Nt);
-    
-    /*
-    if (error == N_sample){
-        printf("All samples wrong, sample 0 report: %Lf\n", Ns[0][0]);
-        return 0;
-    }
-    */
-    //write_samp(Ns);
     return 0;
 }
 
@@ -124,10 +105,9 @@ int matrix_generate(long double a[S][S], long double sig){
     if (choice == 0){ // to generate a new random matrix
         long double rd1, rd2;// variable pair to store random number pair generated
         // go over the matrix and set values for a_ij
-        int i,j;
         srand((unsigned int)time(NULL));
-        for(i=0; i<S; i++){
-            for (j=0; j<i; j++){
+        for(int i=0; i<S; i++){
+            for (int j=0; j<i; j++){
                 pairgenerate(0, (long double)1/S, mygamma/S, &rd1, &rd2);
                 a[i][j] = mu/S + sig*rd1;
                 a[j][i] = mu/S + sig*rd2;
@@ -137,8 +117,8 @@ int matrix_generate(long double a[S][S], long double sig){
         // store the matrix generated in a CSV file for future use
         
         FILE *afile = fopen(aname, "w");
-        for(i=0; i<S; i++){
-            for(j=0; j<S; j++){
+        for(int i=0; i<S; i++){
+            for(int j=0; j<S; j++){
                 fprintf(afile, "%.15Lf", a[i][j]);
                 if (j < S-1){
                     fprintf(afile, ",");
@@ -197,28 +177,26 @@ int evolve( long double** Nt, long double a[S][S]){
     close(fd);
     // Evolution according to LV model
     int t = 1;
-    int i = 0;
-    int j = 0;
     int Ext[S]; // array to record if the species have been extinct
     int toExt[S];
     int change = 0;
-    for(i=0; i<S; i++){
+    for(int i=0; i<S; i++){
         Ext[i] = 1;
-        toExt[S] = 1;
+        toExt[i] = 1;
     }
     // In the case of time delay, we ignore the competition effect before the delay data exist
     for(;t < delay + 1; t++){
-        for (i=0; i<S; i++){
+        for (int i=0; i<S; i++){
             Nt[i][t] = (1+r)*Nt[i][t-1];
         }
     }
     register long double sum; // put sum into register to speed up
     for(; t<N; t++){
-    for(i=0; i<S; i++){
+    for(int i=0; i<S; i++){
         if(Ext[i]){
         // sum over the competition effects
         sum = 0.0;
-        for(j=0; j<S; j++){
+        for(int j=0; j<S; j++){
             if(Ext[j]){
                 sum += a[i][j]*Nt[j][(int) (t-1-(int) (delay))%interval]*Nt[i][(int) (t-1)%interval];    
         }}
@@ -233,17 +211,24 @@ int evolve( long double** Nt, long double a[S][S]){
             //printf("error: negative abundance \n");
             //return -2;
             Nt[i][t%interval] = 0;
-            toExt[i%interval] = 0;
+            toExt[i] = 0;
             change = 1;
         }
     }
         }
         if(change){
-            for(i=0; i<S; i++){
+            for(int i=0; i<S; i++){
                 Ext[i] = toExt[i];
             }
         }
         change = 0;
+    }
+    for(int s=0; s<S; s++){
+        if(Ext[s]==0){
+            for(int m = 0; m<interval; m++){
+                Nt[s][m] = 0;
+            }
+        }
     }
     return 0;
 }
@@ -265,9 +250,9 @@ void write_traj(long double** Nt){
     sprintf(dname, "d_S%d|T%.0e|del%d|r%.1Le.csv", S, (double)T, delay, r);
     FILE *dfile = fopen(dname, "w");
     // write in the time evolution data
-    for (int k = 0; k<N; k++){
+    for (int k = 0; k<interval; k++){
         for (int l = 0; l<S; l++){
-            fprintf(dfile, "%Lf", Nt[l][k]);
+            fprintf(dfile, "%.15Lf", Nt[l][(N-interval+k)%interval]);
             if (l < S-1){
                 fprintf(dfile, ",");
             }
@@ -276,125 +261,7 @@ void write_traj(long double** Nt){
     }
     fclose(dfile);
 }
-/*
-void write_samp(long double Ns[N_sample][S]){
-    char sname[50]; // spring for data file name
-    sprintf(sname, "s_S%d|T%.0e|del%d|r%.1Le|mu%.0Le|sig%.0Le.csv", S, (double)T, delay, r, mu, sig);
-    FILE *sfile = fopen(sname, "w");
-    // write in the time evolution data
-    for (int k = 0; k<N_sample; k++){
-        for (int l = 0; l<S; l++){
-            fprintf(sfile, "%Lf", Ns[k][l]);
-            if (l < S-1){
-                fprintf(sfile, ",");
-            }
-        }
-        fprintf(sfile, "\n");
-    }
-    fclose(sfile);
-}
 
-void write_traj_judge(long double** Nt, int sample){
-    int single_time_check(long double** Nt, int t, int back);
-    char jname[100];
-    sprintf(jname, "s_S%d|T%0.e|r%.1Le|mu%.0Le|sig%.0Le_%d.csv", S, (double)T, r, mu, sig, sample);
-    FILE *jfile = fopen(jname, "w");
-     for (int l = 0; l<S; l++){
-        fprintf(jfile, "%Lf", Nt[l][0]);
-        if (l < S - 1){
-            fprintf(jfile, ",");
-        }
-    }              
-    fprintf(jfile, "\n");
-    for (int k = N - LEN - 1; k<N; k++){
-        for (int l = 0; l<S; l++){
-            fprintf(jfile, "%Lf", Nt[l][k]);
-            if (l < S - 1){
-                fprintf(jfile, ",");
-            }
-        }              
-        fprintf(jfile, "\n");
-    }
-
-    int pattern = 0;
-    for (int o = 1; o < LEN; o++){
-        if(single_time_check(Nt, N-1, o)){
-            int back;
-            for (back = 1; back < LEN; back++){
-                if(single_time_check(Nt, N-1-back, o)){
-                    continue;
-                }
-                break;
-            }
-            if(back == LEN){
-                pattern = o;
-                break;
-            }
-        }
-    }
-    int SS = 0;
-    for (int s = 0; s < S; s++){
-        if(Nt[s][N-1] != 0){
-            SS++;
-        }
-    }
-    
-    //if(pattern != 0){
-    //    fprintf(jfile, "%d", pattern);
-    //    fprintf(jfile, "\n");
-    //}
-    
-    fclose(jfile);
-    char jname_new[100];
-    sprintf(jname_new, "O%d_SS%d_S%d|T%0.e|r%.1Le|mu%.0Le|sig%.0Le_%d.csv", pattern, SS, S, (double)T, r, mu, sig, sample);
-    rename(jname, jname_new);
-}
-*/
-int single_time_check(long double** Nt, int t, int back){
-    int match = 0;
-    for (int s = 0; s < S; s++){
-        if(Nt[s][t] - Nt[s][t - back] < range && Nt[s][t - back] - Nt[s][t] < range){
-            match++;
-        }
-    }
-    if(match == S){
-        return 1;
-    }
-    return 0;
-}
-void write_train(long double** Nt, FILE *tfile){
-    int single_time_check(long double** Nt, int t, int back);
-    int pattern = 0;
-    for (int l = 0; l<S; l++){
-        fprintf(tfile, "%Lf", Nt[l][0]);
-        fprintf(tfile, ",");
-    }              
-    for (int o = 1; o < LEN; o++){
-        if(single_time_check(Nt, N-1, o)){
-            int back;
-            for (back = 1; back < LEN; back++){
-                if(single_time_check(Nt, N-1-back, o)){
-                    continue;
-                }
-                break;
-            }
-            if(back == LEN){
-                pattern = o;
-                break;
-            }
-        }
-    }
-    int SS = 0;
-    for (int s = 0; s < S; s++){
-        if(Nt[s][N-1] != 0){
-            SS++;
-        }
-    }
-    fprintf(tfile, "%d", pattern);
-    fprintf(tfile, ",");
-    fprintf(tfile, "%d", SS);
-    fprintf(tfile, "\n");
-}
 double convertBytesToDouble(const unsigned char *bytes){
     uint32_t result = 0;
     for (size_t i = 0; i < NUM_BYTES; i++){
