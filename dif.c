@@ -45,23 +45,33 @@ int main(){
         return 0;
     }
 
-    char cname[50]; // spring for data file name
+    char cname[50]; // spring for pattern file name
     sprintf(cname, "c_S%d_T%.0e_del%d_mu%.1e_sig%.1e.csv", S, (double)T, delay, mu, sig);
     FILE *cfile = fopen(cname, "w");
     // write in the time evolution data
-    fprintf(cfile, "Number,Count,Pattern\n");
+    fprintf(cfile, "Numbe,Count,Pattern\n");
+
+    char pname[50]; // spring for pattern traj file name
+    sprintf(pname, "p_S%d_T%.0e_mu%.1e_sig%.1e.csv", S, (double)T, mu, sig);
+    FILE *pfile = fopen(pname, "w");
+    fprintf(pfile, "r,index,pattern,time,");
+    for(int s = 1; s <100; s++){
+        fprintf(pfile, "S%d,", s);
+    }
+    fprintf(pfile, "S100\n");
 
     for(r = 1; r < 2.3; r+=0.1){
-        double ***Np;
+    // for loop going over different values of r
+        double ***Np; // large 3D array to record pattern trajectory Np[N_sample][Species][Time]
         Np = (double ***)malloc(N_sample * sizeof(double **));
         for(int sample = 0; sample < N_sample; sample++){
             Np[sample] = (double **)malloc(S * sizeof(double **));
         }
-        int pattern[N_sample];
+        int pattern[N_sample];// array to record the pattern of each sample
      
 #pragma omp parallel for
         for(int sample = 0; sample < N_sample; sample++){
-            double **Nt;
+            double **Nt;// large 2D array for evolution
             Nt = (double **)malloc(S * sizeof(double *));
             for (int b = 0; b < S; b++) {
                 Nt[b] = (double *)malloc(interval * sizeof(double));
@@ -72,7 +82,7 @@ int main(){
             }
             
             if(converge(Nt)){
-                pattern[sample] = 0;
+                pattern[sample] = 0; // 0 for chaos, default value if no pattern found
                 for (int o = 1; o < LEN; o++){
                     if(single_time_check(Nt, N-1, o)){
                         int back;
@@ -89,18 +99,27 @@ int main(){
                     }
                 }
             }else{
-                pattern[sample] = 1;
+                pattern[sample] = 1;// converged sample, pattern=1
             }
 
             if(pattern[sample]){
                 for(int a = 0; a < S; a++){
                     Np[sample][a] = (double*)malloc(pattern[sample] * sizeof(double));
+                    // allocate memory for non-chaotic samples to record their patterns
                 }
-            }
-
-            for(int s = 0; s < S; s++){
-                for(int a = 0; a < pattern[sample]; a++){
-                    Np[sample][s][a] = Nt[s][(int)(N-pattern[sample]+a)%interval];
+                for(int s = 0; s < S; s++){
+                    for(int a = 0; a < pattern[sample]; a++){
+                        Np[sample][s][a] = Nt[s][(int)(N-pattern[sample]+a)%interval];
+                    }
+                }
+            }else{// if no pattern, show a clip of LEN steps
+                for(int a = 0; a < S; a++){
+                    Np[sample][a] = (double*)malloc(LEN * sizeof(double));
+                }
+                for(int s = 0; s < S; s++){
+                    for(int a = 0; a < LEN; a++){
+                        Np[sample][s][a] = Nt[s][(int)(N-pattern[sample]+a)%interval];
+                    }
                 }
             }
             // release the memory reserved for array Nt
@@ -111,8 +130,8 @@ int main(){
             free(Nt);
         }
 
-        int count = 0;
-        int patterns[N_sample];
+        int count = 0; // variable recording total number of patterns found
+        int patterns[N_sample]; // array to index different patterns for each sample, e.g. sample5 has the same pattern as sample1, then patterns[5] = 1, the index is the smallest sample that shows this patten
         patterns[0] = 0;
 
         for(int n = 1; n < N_sample; n++){
@@ -130,12 +149,14 @@ int main(){
             }
         }
 
-        int result[count + 1];
+        int result[count + 1];// array to record how many samples are in each index
+        int back_pointer[count + 1]; // array pointing to a sample of each pattern
         for(int i = 0; i < count + 1; i++){
             result[i] = 0;
         }
         for(int n = 0; n < N_sample; n++){
             result[patterns[n]]++;
+            back_pointer[patterns[n]] = n;
         }
         /*
         printf("%d patterns found in total, with count as follows:\n", count + 1);
@@ -146,19 +167,37 @@ int main(){
         fprintf(cfile, "r=%.1e\n",r);
         for(int c = 0; c < count + 1; c++){
             fprintf(cfile, "%d,%d,%d\n", c+1, result[c], pattern[c]);
+            if(count < 10){
+                if(pattern[c]){
+                    for(int t = 0; t < pattern[c]; t++){
+                        fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
+                        for(int s = 0; s < S; s++){
+                            fprintf(pfile, "%.15f,", Np[back_pointer[c]][s][t]);
+                        }
+                        fprintf(pfile, "\n");
+                    }
+                }else{
+                    for(int t = 0; t < LEN; t++){
+                        fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
+                        for(int s = 0; s < S; s++){
+                            fprintf(pfile, "%.15f,", Np[back_pointer[c]][s][t]);
+                        }
+                    fprintf(pfile, "\n");
+                    }
+                }
+            }
         }
 
         for(int sample = 0; sample < N_sample; sample++){
-            if(pattern[sample]){
-                for(int s = 0; s < S; s++){
-                    free(Np[sample][s]);
-                }
+            for(int s = 0; s < S; s++){
+                free(Np[sample][s]);
             }
             free(Np[sample]);
         }
         free(Np);
     }
     fclose(cfile);
+    fclose(pfile);
     return 0;
 }
 
@@ -375,7 +414,7 @@ int difference_judge(double** Nr, double** Ns, int pattern_r, int pattern_s){
         for(; t < pattern_r; t++){
             int s = 0;
             for(; s < S; s++){
-                if(Nr[s][t] - Ns[s][t] > range || Ns[s][t] - Nr[s][t] > range){
+                if(Nr[s][(t + offset)%pattern_r] - Ns[s][t] > range || Ns[s][t] - Nr[s][(t + offset)%pattern_r] > range){
                     s--;
                     break;
                 }
