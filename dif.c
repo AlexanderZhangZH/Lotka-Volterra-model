@@ -172,7 +172,10 @@ int main(){
                     for(int t = 0; t < pattern[c]; t++){
                         fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
                         for(int s = 0; s < S; s++){
-                            fprintf(pfile, "%.15f,", Np[back_pointer[c]][s][t]);
+                            fprintf(pfile, "%.15f", Np[back_pointer[c]][s][t]);
+                            if(s < S - 1){
+                                fprintf(pfile, ",");
+                            }
                         }
                         fprintf(pfile, "\n");
                     }
@@ -181,6 +184,9 @@ int main(){
                         fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
                         for(int s = 0; s < S; s++){
                             fprintf(pfile, "%.15f,", Np[back_pointer[c]][s][t]);
+                            if(s < S - 1){
+                                fprintf(pfile, ",");
+                            }
                         }
                     fprintf(pfile, "\n");
                     }
