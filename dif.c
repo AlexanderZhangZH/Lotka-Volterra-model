@@ -167,7 +167,7 @@ int main(){
         fprintf(cfile, "r=%.1e\n",r);
         for(int c = 0; c < count + 1; c++){
             fprintf(cfile, "%d,%d,%d\n", c+1, result[c], pattern[c]);
-            if(count < 10){
+            if(c < 10){
                 if(pattern[c]){
                     for(int t = 0; t < pattern[c]; t++){
                         fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
