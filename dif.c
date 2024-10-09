@@ -109,7 +109,7 @@ int main(){
                 }
                 for(int s = 0; s < S; s++){
                     for(int a = 0; a < pattern[sample]; a++){
-                        Np[sample][s][a] = Nt[s][(int)(N-pattern[sample]+a)%interval];
+                        Np[sample][s][a] = Nt[s][(int)(N-1-pattern[sample]+a)%interval];
                     }
                 }
             }else{// if no pattern, show a clip of LEN steps
@@ -118,7 +118,7 @@ int main(){
                 }
                 for(int s = 0; s < S; s++){
                     for(int a = 0; a < LEN; a++){
-                        Np[sample][s][a] = Nt[s][(int)(N-pattern[sample]+a)%interval];
+                        Np[sample][s][a] = Nt[s][(int)(N-1-pattern[sample]+a)%interval];
                     }
                 }
             }
@@ -345,7 +345,7 @@ int evolve( double** Nt, double a[S][S]){
         }
         change = 0;
     }
-    for(int s=0; s<S; s++){
+    for(int s=0; s<S; s++){ // clean the traj of extinct species, whose array are stale as their evolution are stopped
         if(Ext[s]==0){
             for(int m = 0; m<interval; m++){
                 Nt[s][m] = 0;
