@@ -101,7 +101,7 @@ int main(){
             }else{
                 pattern[sample] = 1;// converged sample, pattern=1
             }
-
+/*
             if(pattern[sample]){
                 for(int a = 0; a < S; a++){
                     Np[sample][a] = (double*)malloc(pattern[sample] * sizeof(double));
@@ -112,7 +112,8 @@ int main(){
                         Np[sample][s][a] = Nt[s][(int)(N-1-pattern[sample]+a)%interval];
                     }
                 }
-            }else{// if no pattern, show a clip of LEN steps
+            }else
+            */{// if no pattern, show a clip of LEN steps
                 for(int a = 0; a < S; a++){
                     Np[sample][a] = (double*)malloc(LEN * sizeof(double));
                 }
@@ -168,6 +169,7 @@ int main(){
         for(int c = 0; c < count + 1; c++){
             fprintf(cfile, "%d,%d,%d\n", c+1, result[c], pattern[c]);
             if(c < 10){
+                /*
                 if(pattern[c]){
                     for(int t = 0; t < pattern[c]; t++){
                         fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
@@ -179,11 +181,11 @@ int main(){
                         }
                         fprintf(pfile, "\n");
                     }
-                }else{
+                }else*/{
                     for(int t = 0; t < LEN; t++){
                         fprintf(pfile, "%.1e,%d,%d,%d,", r, c + 1, pattern[c], t + 1);
                         for(int s = 0; s < S; s++){
-                            fprintf(pfile, "%.15f,", Np[back_pointer[c]][s][t]);
+                            fprintf(pfile, "%.15f", Np[back_pointer[c]][s][t]);
                             if(s < S - 1){
                                 fprintf(pfile, ",");
                             }
